@@ -82,7 +82,8 @@ app.post('/start-scraper', async (req, res) => {
     await passwordField.pressSequentially(password, { delay: 100 });
     await page.waitForTimeout(500);
 
-    const loginButton = page.locator('button[type="submit"], .btn-primary, button').first();
+    // Wir suchen gezielt nach dem Button, der den Text "Anmelden" enthält
+    const loginButton = page.locator('button:has-text("Anmelden"), button[type="submit"]').first();
     await loginButton.click();
 
     console.log('[Stundenplan] Warte auf Dashboard...');
