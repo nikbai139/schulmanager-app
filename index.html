@@ -14,8 +14,8 @@
 <body>
 
 <div class="container">
-    <h2>Schulmanager Stundenplan-Loader</h2>
-    <form id="scraperForm" onsubmit="startScraper(event)">
+    <h2>Schulmanager Login & Aktualisierung</h2>
+    <form id="scraperForm" onsubmit="handleLoginUndScrape(event)">
         <div class="form-row">
             <div class="input-group">
                 <label for="username">E-Mail / Benutzername</label>
@@ -25,10 +25,14 @@
                 <label for="password">Passwort</label>
                 <input type="password" id="password" required placeholder="••••••••">
             </div>
+            <div class="input-group checkbox-group" style="display: flex; align-items: center; gap: 5px; margin: 10px 0;">
+                <input type="checkbox" id="merkenCheckbox" id="merkenCheckbox">
+                <label for="merkenCheckbox" style="margin: 0; cursor: pointer;">Zugangsdaten merken (Auto-Login)</label>
+            </div>
             <button type="submit" id="submitBtn">Plan aktualisieren</button>
         </div>
     </form>
-    <div id="statusText" class="status">🔄 Scraper läuft unsichtbar im Hintergrund... Bitte ca. 20 Sekunden warten.</div>
+    <div id="statusText" class="status" style="display:none;">🔄 Scraper läuft unsichtbar im Hintergrund... Bitte ca. 20 Sekunden warten.</div>
 </div>
 
 <div class="container">

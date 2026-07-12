@@ -1,10 +1,12 @@
-// 1. Beim Laden der Seite direkt versuchen, den Plan anzuzeigen
-document.addEventListener("DOMContentLoaded", loadStundenplan);
+// 1. Beim Laden der Seite: Tabelle anzeigen und Auto-Login prüfen
+document.addEventListener("DOMContentLoaded", () => {
+    loadStundenplan();
+    checkAutoLogin();
+});
 
 function renderTable(data) {
     if (!data || !data.tage) return;
 
-    // Zeitstempel setzen
     const timestampEl = document.getElementById('timestamp');
     if (timestampEl && data.aktualisiertAm) {
         timestampEl.innerText = "Stand: " + new Date(data.aktualisiertAm).toLocaleString('de-DE');
@@ -12,24 +14,18 @@ function renderTable(data) {
 
     const body = document.getElementById('stundenplanBody');
     if (!body) return;
-    body.innerHTML = ""; // Altes Layout leeren
+    body.innerHTML = "";
 
     const wochentage = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
 
-    // Zeilen für die Stunden 1 bis 11 bauen
     for (let stunde = 1; stunde <= 11; stunde++) {
         const tr = document.createElement('tr');
-
-        // Erste Spalte: Stundennummer
         const tdStunde = document.createElement('td');
         tdStunde.innerText = stunde;
         tr.appendChild(tdStunde);
 
-        // Spalten für die Wochentage
         wochentage.forEach(tag => {
             const tdTag = document.createElement('td');
-
-            // Suchen, ob es für diesen Tag und diese Stunde einen Eintrag im JSON gibt
             const eintrag = data.tage[tag] ? data.tage[tag].find(e => parseInt(e.stunde) === stunde) : null;
 
             if (eintrag && eintrag.details) {
@@ -43,31 +39,26 @@ function renderTable(data) {
                     </div>
                 `;
             } else {
-                tdTag.innerText = ""; // Freistunde
+                tdTag.innerText = "";
             }
             tr.appendChild(tdTag);
         });
-
         body.appendChild(tr);
     }
 }
 
 async function loadStundenplan() {
-    // ERSTER SCHRITT: Versuche sofort aus dem lokalen Speicher (Handy) zu laden, damit der Nutzer nicht warten muss!
+    // Schnell aus Cache laden
     const localData = localStorage.getItem('stundenplan_cache');
     if (localData) {
-        console.log("Daten direkt aus dem Local Storage des Browsers geladen.");
         renderTable(JSON.parse(localData));
     }
 
-    // ZWEITER SCHRITT: Im Hintergrund versuchen, den aktuellen Stand vom Server zu holen (falls vorhanden)
+    // Hintergrund-Update vom Server-Cache
     try {
         const response = await fetch('/get-stundenplan');
         if (response.ok) {
             const data = await response.json();
-            console.log("Frische Daten erfolgreich vom Server geladen.");
-
-            // Im lokalen Browser-Speicher überschreiben / aktualisieren
             localStorage.setItem('stundenplan_cache', JSON.stringify(data));
             renderTable(data);
         }
@@ -76,21 +67,33 @@ async function loadStundenplan() {
     }
 }
 
-// 2. Scraper im Hintergrund ausführen und Daten empfangen
-async function startScraper(event) {
-    event.preventDefault();
-    console.log("startScraper wurde im Browser getriggert.");
+// NEU: Kombinierte Funktion für Login-Speicherung und Scraper-Start
+async function handleLoginUndScrape(event) {
+    if (event) event.preventDefault();
 
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
+    const user = document.getElementById('username').value;
+    const pass = document.getElementById('password').value;
+    const merken = document.getElementById('merkenCheckbox').checked;
 
+    // 1. Zugangsdaten speichern oder löschen (je nach Checkbox)
+    if (merken) {
+        localStorage.setItem('sm_user', user);
+        localStorage.setItem('sm_pass', pass);
+    } else {
+        localStorage.removeItem('sm_user');
+        localStorage.removeItem('sm_pass');
+    }
+
+    // 2. Scraper mit den eingegebenen Daten starten
+    await executeScraper(user, pass);
+}
+
+// Ausgelagerte Scraper-Logik
+async function executeScraper(username, password) {
     const btn = document.getElementById('submitBtn');
     const status = document.getElementById('statusText');
 
-    if (btn) {
-        btn.disabled = true;
-        btn.innerText = "Lädt...";
-    }
+    if (btn) { btn.disabled = true; btn.innerText = "Lädt..."; }
     if (status) status.style.display = "block";
 
     try {
@@ -101,80 +104,35 @@ async function startScraper(event) {
         });
 
         if (response.ok) {
-            // WICHTIG: Wir holen uns das JSON direkt aus der Antwort des Servers!
             const frischeDaten = await response.json();
-            console.log("Server hat Daten erfolgreich gescraped und gesendet:", frischeDaten);
-
-            // Sofort im Speicher des Smartphones sichern
             localStorage.setItem('stundenplan_cache', JSON.stringify(frischeDaten));
-
-            // Tabelle sofort mit den neuen Daten aktualisieren
             renderTable(frischeDaten);
-
             alert("Stundenplan erfolgreich aktualisiert!");
         } else {
             alert("Fehler beim Scrapen. Bitte Logindaten prüfen.");
         }
     } catch (err) {
-        console.error("Fehler beim Senden an den Server:", err);
+        console.error("Fehler:", err);
         alert("Verbindungsfehler zum Server.");
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerText = "Plan aktualisieren";
-        }
+        if (btn) { btn.disabled = false; btn.innerText = "Plan aktualisieren"; }
         if (status) status.style.display = "none";
     }
 }
 
-async function handleZentralLogin(event) {
-    event.preventDefault();
-    const user = document.getElementById('username').value;
-    const pass = document.getElementById('password').value;
-    const merken = document.getElementById('merkenCheckbox').checked; // Checkbox abfragen
-
-    try {
-        // 1. Schicke die Daten an den Server
-        const response = await fetch('/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user, password: pass })
-        });
-
-        if (response.ok) {
-            // 2. Wenn "gemerkt" werden soll, lokal im Browser speichern
-            if (merken) {
-                localStorage.setItem('sm_user', user);
-                localStorage.setItem('sm_pass', pass);
-            } else {
-                localStorage.removeItem('sm_user');
-                localStorage.removeItem('sm_pass');
-            }
-            alert("Erfolgreich angemeldet!");
-        } else {
-            alert("Anmeldung am Server fehlgeschlagen.");
-        }
-    } catch (e) {
-        console.error("Login-Fehler:", e);
-    }
-}
-
-// Automatischer Auto-Login beim Starten der Website:
-document.addEventListener("DOMContentLoaded", async () => {
+// Prüft beim Start, ob Daten da sind -> loggt ein und holt Daten automatisch
+async function checkAutoLogin() {
     const savedUser = localStorage.getItem('sm_user');
     const savedPass = localStorage.getItem('sm_pass');
 
     if (savedUser && savedPass) {
-        try {
-            // Automatisch im Hintergrund am Server anmelden
-            await fetch('/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: savedUser, password: savedPass })
-            });
-            console.log("Auto-Login durchgeführt!");
-        } catch (e) {
-            console.log("Auto-Login fehlgeschlagen (Server offline?).");
-        }
+        // Felder visuell befüllen und Haken setzen
+        if(document.getElementById('username')) document.getElementById('username').value = savedUser;
+        if(document.getElementById('password')) document.getElementById('password').value = savedPass;
+        if(document.getElementById('merkenCheckbox')) document.getElementById('merkenCheckbox').checked = true;
+
+        console.log("Gespeicherte Daten gefunden. Starte automatischen Abgleich...");
+        // Führt den Scraper direkt automatisch aus
+        await executeScraper(savedUser, savedPass);
     }
-});
+}
