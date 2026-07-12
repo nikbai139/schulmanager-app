@@ -1,337 +1,125 @@
-const express = require('express');
-const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
+document.addEventListener("DOMContentLoaded", loadHausaufgaben);
 
-const app = express();
-const PORT = 3000;
+function renderHausaufgaben(data) {
+    const liste = document.getElementById('hausaufgabenListe');
+    const timestampEl = document.getElementById('timestamp');
+    if (!liste) return;
 
-// Sorgt dafür, dass Express Formulardaten (POST) und JSON-Daten versteht
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+    liste.innerHTML = ""; // Leeren
 
-// Aktiviert das Ausliefern von statischen Dateien (style.css, app.js, hausaufgaben.js) im aktuellen Ordner
-app.use(express.static(__dirname));
+    if (timestampEl && data.aktualisiertAm) {
+        timestampEl.innerText = "Stand: " + new Date(data.aktualisiertAm).toLocaleString('de-DE');
+    }
 
-// ==========================================
-// 1. ROUTEN FÜR DAS FRONTEND (HTML)
-// ==========================================
+    if (!data.aufgaben || data.aufgaben.length === 0) {
+        liste.innerHTML = `<div class="no-hw">Keine aktuellen Hausaufgaben eingetragen! 🎉</div>`;
+        return;
+    }
 
-// Startseite -> Stundenplan
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+    data.aufgaben.forEach((aufgabe, index) => {
+        const item = document.createElement('div');
+        item.className = "hw-item";
 
-// Separate Seite -> Hausaufgaben
-app.get('/hausaufgaben', (req, res) => {
-  res.sendFile(path.join(__dirname, 'hausaufgaben.html'));
-});
-// Separate Seite -> Hausaufgaben
-app.get('/notenrechner', (req, res) => {
-  res.sendFile(path.join(__dirname, 'notenrechner.html'));
-});
+        item.innerHTML = `
+            <div class="hw-content">
+                <span class="hw-fach">${aufgabe.fach}</span>
+                <div class="hw-text">${aufgabe.text}</div>
+            </div>
+            <div class="hw-date">
+                Vom: ${aufgabe.datum || 'Unbekannt'}
+                <input type="checkbox" id="hw_${index}">
+            </div>
+        `;
 
+        liste.appendChild(item);
 
-// ==========================================
-// 2. ROUTEN FÜR DIE JSON-DATEN (GET)
-// ==========================================
+        const checkbox = item.querySelector("input[type='checkbox']");
 
-// Sendet die Stundenplan-Daten an den Browser
-app.get('/get-stundenplan', (req, res) => {
-  const dateiPfad = path.join(__dirname, 'stundenplan.json');
-  if (fs.existsSync(dateiPfad)) {
-    res.sendFile(dateiPfad);
-  } else {
-    res.status(404).json({ fehler: "Noch kein Plan vorhanden" });
-  }
-});
+        // Gespeicherte Checkbox-Zustände laden
+        const saved = JSON.parse(localStorage.getItem("hw_checked") || "{}");
+        checkbox.checked = !!saved[index];
 
-// Sendet die Hausaufgaben-Daten an den Browser
-app.get('/get-hausaufgaben', (req, res) => {
-  const dateiPfad = path.join(__dirname, 'hausaufgaben.json');
-  if (fs.existsSync(dateiPfad)) {
-    res.sendFile(dateiPfad);
-  } else {
-    res.status(404).json({ fehler: "Noch keine Hausaufgaben vorhanden" });
-  }
-});
-
-
-// ==========================================
-// 3. SCRAPER-ROUTE: STUNDENPLAN (POST)
-// ==========================================
-app.post('/start-scraper', async (req, res) => {
-  console.log('=============================================');
-  console.log('👉 [STUNDENPLAN] Anfrage vom Browser empfangen');
-  console.log('=============================================');
-
-  const { username, password } = req.body;
-  if (!username || !password) {
-     return res.status(400).send("Logindaten fehlen im Request.");
-  }
-
-  let browser;
-  try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: { width: 1400, height: 1200 } });
-    const page = await context.newPage();
-
-    console.log('[Stundenplan] Öffne Schulmanager Login...');
-    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'commit' });
-    await page.waitForTimeout(3000);
-
-    const usernameField = page.locator('input[name="login"], input[name="username"], input[type="text"], input').first();
-    const passwordField = page.locator('#password');
-    await usernameField.waitFor({ timeout: 5000 });
-
-    console.log('[Stundenplan] Logge ein...');
-    await usernameField.pressSequentially(username, { delay: 40 });
-    await passwordField.pressSequentially(password, { delay: 40 });
-    await passwordField.press('Enter');
-    await page.waitForTimeout(5000);
-
-    console.log('[Stundenplan] Navigiere zum Stundenplan-Modul...');
-    await page.goto('https://login.schulmanager-online.de/#/modules/schedules/view//', { waitUntil: 'commit' });
-    await page.waitForTimeout(5000);
-
-    console.log('[Stundenplan] Scanne Matrix...');
-    const stundenplanSortiert = await page.evaluate(() => {
-      const wochentage = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
-      let ergebnis = { "Montag": [], "Dienstag": [], "Mittwoch": [], "Donnerstag": [], "Freitag": [] };
-
-      const alleElemente = Array.from(document.querySelectorAll('div, th, td, span, a'));
-      let tagesSpalten = [];
-      wochentage.forEach(tag => {
-        const headerEl = alleElemente.find(el => el.innerText && el.innerText.trim().startsWith(tag));
-        if (headerEl) {
-          const box = headerEl.getBoundingClientRect();
-          tagesSpalten.push({ name: tag, links: box.left, rechts: box.right });
-        }
-      });
-
-      let stundenZeilen = [];
-      alleElemente.forEach(el => {
-        const txt = el.innerText ? el.innerText.trim() : "";
-        if (/^\d+$/.test(txt) && parseInt(txt) >= 1 && parseInt(txt) <= 11) {
-          const box = el.getBoundingClientRect();
-          if (box.width < 100 && box.height > 0) {
-            stundenZeilen.push({ stunde: txt, oben: box.top, unten: box.bottom });
-          }
-        }
-      });
-
-      stundenZeilen = stundenZeilen.filter((v, i, a) => a.findIndex(t => t.stunde === v.stunde && Math.abs(t.oben - v.oben) < 5) === i);
-
-      const datenKaeschen = alleElemente.filter(el => {
-        const txt = el.innerText ? el.innerText.trim() : "";
-        return txt.length > 0 && !wochentage.some(t => txt.startsWith(t)) && !txt.includes("Kalenderwoche") && !/^\d+$/.test(txt);
-      });
-
-      datenKaeschen.forEach(kasten => {
-        const box = kasten.getBoundingClientRect();
-        if (box.width === 0 || box.height === 0) return;
-
-        const kastenMitteX = box.left + (box.width / 2);
-        const kastenMitteY = box.top + (box.height / 2);
-
-        const passendeZeile = stundenZeilen.find(z => kastenMitteY >= z.oben - 15 && kastenMitteY <= z.unten + 15);
-        const passenderTag = tagesSpalten.find(s => kastenMitteX >= s.links - 5 && kastenMitteX <= s.rechts + 5);
-
-        if (passendeZeile && passenderTag) {
-          const sNum = passendeZeile.stunde;
-          const tName = passenderTag.name;
-
-          const style = window.getComputedStyle(kasten);
-          const istDurchgestrichen = style.textDecoration.includes('line-through') ||
-                                     kasten.querySelector('del, s, .cancelled, .durchgestrichen') !== null ||
-                                     kasten.closest('del, s, .cancelled, .durchgestrichen') !== null;
-
-          let textSauber = kasten.innerText.split('\n').map(t => t.trim()).filter(t => t.length > 0).join(' | ');
-
-          if (istDurchgestrichen) {
-            textSauber = "(AUSFALL) " + textSauber;
-          }
-
-          const existiertIndex = ergebnis[tName].findIndex(e => e.stunde === sNum);
-          if (existiertIndex === -1) {
-            if (textSauber.length > 1) ergebnis[tName].push({ stunde: sNum, details: textSauber });
-          } else {
-            if (textSauber.length > ergebnis[tName][existiertIndex].details.length) {
-              ergebnis[tName][existiertIndex].details = textSauber;
-            }
-          }
-        }
-      });
-
-      wochentage.forEach(t => ergebnis[t].sort((a, b) => parseInt(a.stunde) - parseInt(b.stunde)));
-      return ergebnis;
+        // Änderungen speichern
+        checkbox.addEventListener("change", () => {
+            saveCheckboxState(index, checkbox.checked);
+        });
     });
+}
 
-    const datenObjekt = {
-      aktualisiertAm: new Date().toISOString(),
-      schuleId: "14644",
-      tage: stundenplanSortiert
-    };
+async function loadHausaufgaben() {
+    // ERSTER SCHRITT: Sofort aus dem lokalen Speicher (Handy) laden, damit keine Wartezeit entsteht
+    const localData = localStorage.getItem('hausaufgaben_cache');
+    if (localData) {
+        console.log("Hausaufgaben direkt aus dem Local Storage geladen.");
+        renderHausaufgaben(JSON.parse(localData));
+    } else {
+        const liste = document.getElementById('hausaufgabenListe');
+        if (liste) {
+            liste.innerHTML = `<div class="no-hw">Noch keine Daten geladen. Bitte Formular abschicken.</div>`;
+        }
+    }
 
-    fs.writeFileSync(path.join(__dirname, 'stundenplan.json'), JSON.stringify(datenObjekt, null, 2), 'utf-8');
-    console.log('✅ [Stundenplan] stundenplan.json erfolgreich aktualisiert!');
-    res.sendStatus(200);
+    // ZWEITER SCHRITT: Im Hintergrund versuchen, den aktuellen Stand vom Server-Cache zu holen
+    try {
+        const response = await fetch('/get-hausaufgaben');
+        if (response.ok) {
+            const data = await response.json();
+            console.log("Frische Hausaufgaben erfolgreich vom Server geladen.");
+            
+            // Lokalen Speicher aktualisieren
+            localStorage.setItem('hausaufgaben_cache', JSON.stringify(data));
+            renderHausaufgaben(data);
+        }
+    } catch (err) {
+        console.log("Server noch nicht erreichbar oder Server-Cache leer.");
+    }
+}
 
-  } catch (error) {
-    console.error('❌ Fehler beim Stundenplan-Scraping:', error);
-    res.status(500).send(error.message);
-  } finally {
-    if (browser) await browser.close();
-  }
-});
+async function startHwScraper(event) {
+    event.preventDefault();
+    console.log("startHwScraper wurde im Browser getriggert.");
 
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('submitBtn');
+    const status = document.getElementById('statusText');
 
-// ==========================================
-// 4. SCRAPER-ROUTE: HAUSAUFGABEN WITH DEBUG LOGS
-// ==========================================
-app.post('/start-hw-scraper', async (req, res) => {
-  console.log('=============================================');
-  console.log('👉 [HAUSAUFGABEN] Anfrage vom Browser empfangen');
-  console.log('=============================================');
+    if (btn) { btn.disabled = true; btn.innerText = "Lädt..."; }
+    if (status) status.style.display = "block";
 
-  const { username, password } = req.body;
-  if (!username || !password) {
-     return res.status(400).send("Logindaten fehlen im Request.");
-  }
-
-  let browser;
-  try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: { width: 1400, height: 1200 } });
-    const page = await context.newPage();
-
-    console.log('[Hausaufgaben] Öffne Schulmanager Login...');
-    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'commit' });
-    await page.waitForTimeout(3000);
-
-    const usernameField = page.locator('input[type="text"], input').first();
-    const passwordField = page.locator('#password');
-    await usernameField.waitFor({ timeout: 5000 });
-
-    console.log('[Hausaufgaben] Logge ein...');
-    await usernameField.pressSequentially(username, { delay: 40 });
-    await passwordField.pressSequentially(password, { delay: 40 });
-    await passwordField.press('Enter');
-    await page.waitForTimeout(5000);
-
-    console.log('[Hausaufgaben] Navigiere zum Klassenbuch-Hausaufgaben-Modul...');
-    await page.goto('https://login.schulmanager-online.de/#/modules/classbook/homework/', { waitUntil: 'commit' });
-    await page.waitForTimeout(6000);
-
-    console.log('[Hausaufgaben] Scanne Seite nach Elementen...');
-        const gefilterteAufgaben = await page.evaluate(() => {
-          let aufgabenListe = [];
-          let aktuellesDatum = "Kein Datum";
-
-          // 1. Wir suchen zuerst nach Datumszeilen, um das aktuelle Datum zu bestimmen
-          // Schulmanager nutzt oft h3, h4 oder divs für das Datum über den Aufgaben
-          const alleElemente = document.querySelectorAll('h3, h4, .card-header, div, tr, .list-group-item');
-
-          alleElemente.forEach(el => {
-            const text = el.innerText ? el.innerText.trim() : "";
-            if (!text || el.getBoundingClientRect().height === 0) return;
-
-            // Datum finden und merken (z.B. "Donnerstag, 09.07.2026")
-            const datumsMatch = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-            if (datumsMatch && (text.includes("Montag") || text.includes("Dienstag") || text.includes("Mittwoch") || text.includes("Donnerstag") || text.includes("Freitag") || text.toLowerCase().includes("bis"))) {
-              if (datumsMatch[0] !== aktuellesDatum) {
-                aktuellesDatum = datumsMatch[0];
-              }
-              return;
-            }
-
-            // UI-Menüs und Navigation komplett ignorieren
-            if (text.includes("Filter") || text.includes("Hausaufgaben hinzufügen") || text.includes("Stundenplan") || text.includes("Klassenbuch") || text.includes("Berichte") || text.includes("Benutzername")) {
-              return;
-            }
-
-            // WICHTIG: Wenn das Element andere Elemente enthält, die selbst Hausaufgaben sind,
-            // überspringen wir das übergeordnete Element, um Text-Verschmelzungen zu verhindern!
-            if (el.querySelectorAll('.card, tr, .list-group-item').length > 0) {
-              return;
-            }
-
-            const zeilen = text.split('\n').map(z => z.trim()).filter(z => z.length > 0);
-
-            // Eine valide Hausaufgabe hat meistens das Fach in Zeile 0 und den Text in Zeile 1
-            if (zeilen.length >= 2) {
-              const fach = zeilen[0];
-              // Verhindern, dass lange Sätze oder Datumsangaben als "Fach" erkannt werden
-              if (fach.length > 0 && fach.length < 25 && !fach.includes(",") && !/^\d{2}\./.test(fach)) {
-                const aufgabenText = zeilen.slice(1).join(' ');
-
-                // Keine Menüwörter als Hausaufgabe reinlassen
-                if (fach === "Hausaufgaben" || aufgabenText === "Hausaufgaben" || fach === "Navigation") {
-                  return;
-                }
-
-                // Duplikate vermeiden
-                if (!aufgabenListe.some(a => a.fach === fach && a.text === aufgabenText && a.datum === aktuellesDatum)) {
-                  aufgabenListe.push({
-                    fach: fach,
-                    text: aufgabenText,
-                    datum: aktuellesDatum
-                  });
-                }
-              }
-            }
-          });
-
-          return aufgabenListe;
+    try {
+        const response = await fetch('/start-hw-scraper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
         });
 
-        // --- DEBUG LOG 1 ---
-        console.log(`[DEBUG] Rohe Aufgaben von Webseite gefunden: ${gefilterteAufgaben.length}`);
+        if (response.ok) {
+            // WICHTIG: Wir holen uns das JSON direkt aus der Server-Antwort!
+            const frischeDaten = await response.json();
+            console.log("Server hat Hausaufgaben erfolgreich gescraped und gesendet:", frischeDaten);
 
-        // FILTER FÜR DIE LETZTEN 14 TAGE (KORRIGIERT!)
-        const heute = new Date();
-        const vor14Tagen = new Date();
-        vor14Tagen.setDate(heute.getDate() - 14);
-        vor14Tagen.setHours(0, 0, 0, 0);
+            // Sofort im Handyspeicher sichern
+            localStorage.setItem('hausaufgaben_cache', JSON.stringify(frischeDaten));
+            
+            // Liste sofort mit den neuen Hausaufgaben zeichnen
+            renderHausaufgaben(frischeDaten);
 
-        const finaleAufgaben = gefilterteAufgaben.filter(aufgabe => {
-          if (!aufgabe.datum || aufgabe.datum === "Kein Datum") return true;
+            alert("Hausaufgaben erfolgreich aktualisiert!");
+        } else {
+            alert("Fehler beim Abrufen der Hausaufgaben. Bitte Logindaten prüfen.");
+        }
+    } catch (err) {
+        console.error("Fehler beim Senden an den Server:", err);
+        alert("Verbindungsfehler zum Server.");
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerText = "Aufgaben aktualisieren"; }
+        if (status) status.style.display = "none";
+    }
+}
 
-          const datumTeile = aufgabe.datum.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-          if (datumTeile) {
-            const tag = parseInt(datumTeile[1], 10);
-            const monat = parseInt(datumTeile[2], 10) - 1;
-            const jahr = parseInt(datumTeile[3], 10);
-
-            const aufgabenDatum = new Date(jahr, monat, tag, 0, 0, 0, 0);
-
-            // KORREKTUR: >= statt <= (Behalte alles, was neuer als vor 14 Tagen ist)
-            return aufgabenDatum >= vor14Tagen;
-          }
-          return true;
-        });
-
-        // --- DEBUG LOG 2 ---
-        console.log(`[DEBUG] Aufgaben NACH dem 14-Tage-Filter: ${finaleAufgaben.length}`);
-
-        const datenObjekt = {
-          aktualisiertAm: new Date().toISOString(),
-          aufgaben: finaleAufgaben
-        };
-
-        fs.writeFileSync(path.join(__dirname, 'hausaufgaben.json'), JSON.stringify(datenObjekt, null, 2), 'utf-8');
-        res.sendStatus(200);
-
-  } catch (error) {
-    console.error('❌ Fehler beim Hausaufgaben-Scraping:', error);
-    res.status(500).send(error.message);
-  } finally {
-    if (browser) await browser.close();
-  }
-});
-// Server starten
-app.listen(PORT, () => {
-  console.log(`🚀 Kombi-Server läuft!`);
-  console.log(`📅 Stundenplan:   http://localhost:${PORT}/`);
-  console.log(`📝 Hausaufgaben: http://localhost:${PORT}/hausaufgaben`);
-});
+function saveCheckboxState(index, checked) {
+    const saved = JSON.parse(localStorage.getItem("hw_checked") || "{}");
+    saved[index] = checked;
+    localStorage.setItem("hw_checked", JSON.stringify(saved));
+}

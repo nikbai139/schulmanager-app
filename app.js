@@ -53,35 +53,30 @@ function renderTable(data) {
 }
 
 async function loadStundenplan() {
+    // ERSTER SCHRITT: Versuche sofort aus dem lokalen Speicher (Handy) zu laden, damit der Nutzer nicht warten muss!
+    const localData = localStorage.getItem('stundenplan_cache');
+    if (localData) {
+        console.log("Daten direkt aus dem Local Storage des Browsers geladen.");
+        renderTable(JSON.parse(localData));
+    }
+
+    // ZWEITER SCHRITT: Im Hintergrund versuchen, den aktuellen Stand vom Server zu holen (falls vorhanden)
     try {
-        // Schritt A: Versuche vom Server zu laden
         const response = await fetch('/get-stundenplan');
         if (response.ok) {
             const data = await response.json();
-            console.log("Daten erfolgreich vom Server geladen.");
+            console.log("Frische Daten erfolgreich vom Server geladen.");
 
-            // Im lokalen Browser-Speicher als Backup sichern
+            // Im lokalen Browser-Speicher überschreiben / aktualisieren
             localStorage.setItem('stundenplan_cache', JSON.stringify(data));
-
             renderTable(data);
-            return;
         }
     } catch (err) {
-        console.log("Server noch nicht erreichbar oder Datei fehlt, prüfe Local Storage...");
-    }
-
-    // Schritt B: Fallback auf Local Storage (Lokaler Speicher im Browser)
-    const localData = localStorage.getItem('stundenplan_cache');
-    if (localData) {
-        console.log("Daten erfolgreich aus dem Local Storage des Browsers geladen.");
-        const data = JSON.parse(localData);
-        renderTable(data);
-    } else {
-        console.log("Weder auf dem Server noch im Local Storage Daten gefunden.");
+        console.log("Server noch nicht erreichbar oder Server-Cache leer.");
     }
 }
 
-// 2. Scraper im Hintergrund ausführen
+// 2. Scraper im Hintergrund ausführen und Daten empfangen
 async function startScraper(event) {
     event.preventDefault();
     console.log("startScraper wurde im Browser getriggert.");
@@ -106,9 +101,16 @@ async function startScraper(event) {
         });
 
         if (response.ok) {
-            console.log("Server hat das Scraping erfolgreich beendet.");
-            // Tabelle neu laden (zieht die frischen Daten und speichert sie lokal)
-            await loadStundenplan();
+            // WICHTIG: Wir holen uns das JSON direkt aus der Antwort des Servers!
+            const frischeDaten = await response.json();
+            console.log("Server hat Daten erfolgreich gescraped und gesendet:", frischeDaten);
+
+            // Sofort im Speicher des Smartphones sichern
+            localStorage.setItem('stundenplan_cache', JSON.stringify(frischeDaten));
+
+            // Tabelle sofort mit den neuen Daten aktualisieren
+            renderTable(frischeDaten);
+
             alert("Stundenplan erfolgreich aktualisiert!");
         } else {
             alert("Fehler beim Scrapen. Bitte Logindaten prüfen.");
@@ -124,27 +126,36 @@ async function startScraper(event) {
         if (status) status.style.display = "none";
     }
 }
+
 async function handleZentralLogin(event) {
     event.preventDefault();
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
     const merken = document.getElementById('merkenCheckbox').checked; // Checkbox abfragen
 
-    // 1. Schicke die Daten an den Server
-    const response = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass })
-    });
+    try {
+        // 1. Schicke die Daten an den Server
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
 
-    if (response.ok) {
-        // 2. Wenn "gemerkt" werden soll, lokal im Browser speichern
-        if (merken) {
-            localStorage.setItem('sm_user', user);
-            localStorage.setItem('sm_pass', pass);
+        if (response.ok) {
+            // 2. Wenn "gemerkt" werden soll, lokal im Browser speichern
+            if (merken) {
+                localStorage.setItem('sm_user', user);
+                localStorage.setItem('sm_pass', pass);
+            } else {
+                localStorage.removeItem('sm_user');
+                localStorage.removeItem('sm_pass');
+            }
+            alert("Erfolgreich angemeldet!");
+        } else {
+            alert("Anmeldung am Server fehlgeschlagen.");
         }
-        alert("Erfolgreich angemeldet!");
-        // Jetzt kannst du die Scraper ganz ohne Body triggern!
+    } catch (e) {
+        console.error("Login-Fehler:", e);
     }
 }
 
@@ -154,12 +165,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const savedPass = localStorage.getItem('sm_pass');
 
     if (savedUser && savedPass) {
-        // Automatisch im Hintergrund am Server anmelden
-        await fetch('/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: savedUser, password: savedPass })
-        });
-        console.log("Auto-Login durchgeführt!");
+        try {
+            // Automatisch im Hintergrund am Server anmelden
+            await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: savedUser, password: savedPass })
+            });
+            console.log("Auto-Login durchgeführt!");
+        } catch (e) {
+            console.log("Auto-Login fehlgeschlagen (Server offline?).");
+        }
     }
 });
