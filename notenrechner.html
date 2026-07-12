@@ -275,7 +275,7 @@
               summeProzent += eintrag.prozent;
               zeilenHtml += `
                   <tr>
-                      <td>Note: <strong>${eintrag.note.toFixed(2)}</strong></td>
+                      <td>Note: <strong>${eintrag.note.toFixed(1)}</strong></td>
                       <td>Gewichtung: ${eintrag.prozent}%</td>
                       <td style="text-align: right;"><button class="btn-delete" onclick="deleteNote(${eintrag.id})">Löschen</button></td>
                   </tr>

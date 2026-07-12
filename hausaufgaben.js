@@ -16,7 +16,7 @@ function renderHausaufgaben(data) {
         return;
     }
 
-    data.aufgaben.forEach((aufgabe, index) => {
+    data.aufgaben.forEach(aufgabe => {
         const item = document.createElement('div');
         item.className = "hw-item";
 
@@ -25,26 +25,10 @@ function renderHausaufgaben(data) {
                 <span class="hw-fach">${aufgabe.fach}</span>
                 <div class="hw-text">${aufgabe.text}</div>
             </div>
-            <div class="hw-date">
-                Vom: ${aufgabe.datum || 'Unbekannt'}
-                <input type="checkbox" id="hw_${index}">
-            </div>
+            <div class="hw-date">Bis: ${aufgabe.datum || 'Unbekannt'}</div>
         `;
-
         liste.appendChild(item);
-
-        const checkbox = item.querySelector("input[type='checkbox']");
-
-        // gespeicherte Checkbox-Zustände laden
-        const saved = JSON.parse(localStorage.getItem("hw_checked") || "{}");
-        checkbox.checked = !!saved[index];
-
-        // Änderungen speichern
-        checkbox.addEventListener("change", () => {
-            saveCheckboxState(index, checkbox.checked);
-        });
     });
-
 }
 
 async function loadHausaufgaben() {
@@ -99,9 +83,4 @@ async function startHwScraper(event) {
         if (btn) { btn.disabled = false; btn.innerText = "Aufgaben aktualisieren"; }
         if (status) status.style.display = "none";
     }
-}
-function saveCheckboxState(index, checked) {
-    const saved = JSON.parse(localStorage.getItem("hw_checked") || "{}");
-    saved[index] = checked;
-    localStorage.setItem("hw_checked", JSON.stringify(saved));
 }
