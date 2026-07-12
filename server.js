@@ -73,18 +73,22 @@ app.post('/start-scraper', async (req, res) => {
     const passwordField = page.locator('input[type="password"], #password').first();
     await usernameField.waitFor({ timeout: 10000 });
 
-    console.log('[Stundenplan] Logge ein...');
-    await usernameField.click();
-    await usernameField.pressSequentially(username, { delay: 100 });
-    await page.waitForTimeout(500);
+    console.log('[Stundenplan] Logge ein (mit Event-Trigger)...');
+        await usernameField.click();
+        await usernameField.pressSequentially(username, { delay: 150 }); // Etwas langsamer tippen
+        // WICHTIG: Signalisiert der Website, dass Text eingegeben wurde
+        await usernameField.evaluate(el => el.dispatchEvent(new Event('input', { bubbles: true })));
+        await page.waitForTimeout(500);
 
-    await passwordField.click();
-    await passwordField.pressSequentially(password, { delay: 100 });
-    await page.waitForTimeout(500);
+        await passwordField.click();
+        await passwordField.pressSequentially(password, { delay: 150 });
+        // WICHTIG: Signalisiert der Website, dass das Passwort da ist
+        await passwordField.evaluate(el => el.dispatchEvent(new Event('input', { bubbles: true })));
+        await page.waitForTimeout(1000); // Kurz warten, damit der Button aktiv wird
 
-    // Wir suchen gezielt nach dem Button, der den Text "Anmelden" enthält
-    const loginButton = page.locator('button:has-text("Anmelden"), button[type="submit"]').first();
-    await loginButton.click();
+        // Jetzt klicken wir auf den aktivierten Button
+        const loginButton = page.locator('button:has-text("Anmelden"), button[type="submit"], .btn-primary').first();
+        await loginButton.click();
 
     console.log('[Stundenplan] Warte auf Dashboard...');
     await page.waitForTimeout(8000);
