@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schulmanager Online Stundenplan</title>
+    <link rel="stylesheet" href="style.css">
+    <div class="nav-buttons">
+        <button onclick="window.location.href='index.html'">Stundenplan</button>
+        <button onclick="window.location.href='hausaufgaben.html'">Hausaufgabe</button>
+        <button onclick="window.location.href='notenrechner.html'">Noten</button>
+    </div>
+</head>
+<body>
+
+<div class="container">
+    <h2>Schulmanager Stundenplan-Loader</h2>
+    <form id="scraperForm" onsubmit="startScraper(event)">
+        <div class="form-row">
+            <div class="input-group">
+                <label for="username">E-Mail / Benutzername</label>
+                <input type="text" id="username" required placeholder="name@schule.de">
+            </div>
+            <div class="input-group">
+                <label for="password">Passwort</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="submitBtn">Plan aktualisieren</button>
+        </div>
+    </form>
+    <div id="statusText" class="status">🔄 Scraper läuft unsichtbar im Hintergrund... Bitte ca. 20 Sekunden warten.</div>
+</div>
+
+<div class="container">
+    <h2>Aktueller Stundenplan</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Stunde</th>
+            <th>Montag</th>
+            <th>Dienstag</th>
+            <th>Mittwoch</th>
+            <th>Donnerstag</th>
+            <th>Freitag</th>
+        </tr>
+        </thead>
+        <tbody id="stundenplanBody">
+        </tbody>
+    </table>
+    <div id="timestamp" class="aktualisiert"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

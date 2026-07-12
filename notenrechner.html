@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schulnoten-Manager (mit Speicherfunktion)</title>
+  <link rel="stylesheet" href="style.css">
+  <div class="nav-buttons">
+    <button onclick="window.location.href='index.html'">Stundenplan</button>
+    <button onclick="window.location.href='hausaufgaben.html'">Hausaufgabe</button>
+    <button onclick="window.location.href='notenrechner.html'">Noten</button>
+  </div>
+  <style>
+    :root {
+        --primary: #4a90e2;
+        --bg: #f5f7fa;
+        --card-bg: #ffffff;
+        --text: #333333;
+        --danger: #e74c3c;
+        --success: #2ecc71;
+        --accent: #9b59b6;
+    }
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+    }
+    .container {
+        width: 100%;
+        max-width: 750px;
+        background: var(--card-bg);
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    h1 {
+        text-align: center;
+        color: var(--primary);
+        margin-top: 0;
+    }
+    .form-group {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr auto;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 25px;
+        font-size: 14px;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+    }
+    input[type="text"], input[type="number"], button {
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    input:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+    input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    button {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    button:hover {
+        background-color: #357abd;
+    }
+    .total-box {
+        background: #eef5fc;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 25px;
+        border: 1px solid #d0e3f7;
+    }
+    .total-box span {
+        color: var(--primary);
+        font-size: 26px;
+        display: block;
+        margin-top: 5px;
+    }
+    .fach-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    .fach-header {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    .fach-schnitte {
+        display: flex;
+        gap: 10px;
+    }
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: white;
+        font-size: 12px;
+    }
+    .badge-blue { background-color: var(--primary); }
+    .badge-orange { background-color: #f39c12; }
+    .badge-green { background-color: var(--success); }
+    .badge-red { background-color: var(--danger); }
+    .badge-purple { background-color: var(--accent); }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    td {
+        padding: 10px 15px;
+        border-bottom: 1px solid #eee;
+    }
+    .btn-delete {
+        background: none;
+        color: var(--danger);
+        border: none;
+        cursor: pointer;
+    }
+    .btn-delete:hover {
+        text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Schulnoten-Manager</h1>
+
+  <div class="form-group">
+    <input type="text" id="fach" placeholder="Fach (z.B. Mathe)">
+    <input type="number" id="note" placeholder="Note (1-6)" min="1" max="6" step="0.1">
+    <input type="number" id="prozent" placeholder="Wert in %" min="1" max="100">
+    <button onclick="addNote()">Hinzufügen</button>
+  </div>
+
+  <div class="checkbox-group">
+    <input type="checkbox" id="istHauptfach">
+    <label for="istHauptfach"><strong>Dieses Fach ist ein Hauptfach</strong> (zählt doppelt im Gesamtschnitt)</label>
+  </div>
+
+  <div class="total-box">
+    Gesamtdurchschnitt (Hauptfächer zählen doppelt): <span id="gesamtschnitt">0.00</span>
+  </div>
+
+  <div id="faecherListe"></div>
+</div>
+
+<script>
+  // Versuche zuerst, alte Daten aus dem Speicher (localStorage) zu laden.
+  // Wenn keine existieren, starte mit einem leeren Array.
+  let notenListe = JSON.parse(localStorage.getItem('schulnoten_daten')) || [];
+
+  // Diese Funktion wird direkt beim Laden der Website einmal ausgeführt
+  window.onload = function() {
+      updateUI();
+  };
+
+  function addNote() {
+      const fachInput = document.getElementById('fach');
+      const noteInput = document.getElementById('note');
+      const prozentInput = document.getElementById('prozent');
+      const hauptfachInput = document.getElementById('istHauptfach');
+
+      let fach = fachInput.value.trim();
+      if (!fach) fach = "Unbenannt";
+      fach = fach.charAt(0).toUpperCase() + fach.slice(1).toLowerCase();
+
+      const note = parseFloat(noteInput.value);
+      const prozent = parseFloat(prozentInput.value);
+      const istHauptfach = hauptfachInput.checked;
+
+      if (isNaN(note) || note < 1 || note > 6) {
+          alert("Bitte gib eine gültige Note zwischen 1 und 6 ein.");
+          return;
+      }
+
+      if (isNaN(prozent) || prozent <= 0 || prozent > 100) {
+          alert("Bitte gib einen Prozentwert zwischen 1 und 100 ein.");
+          return;
+      }
+
+      const existierendesFach = notenListe.find(n => n.fach === fach);
+      const finalerHauptfachStatus = existierendesFach ? existierendesFach.istHauptfach : istHauptfach;
+
+      notenListe.push({
+          id: Date.now(),
+          fach: fach,
+          note: note,
+          prozent: prozent,
+          istHauptfach: finalerHauptfachStatus
+      });
+
+      noteInput.value = '';
+      prozentInput.value = '';
+      hauptfachInput.checked = false;
+
+      // UI updaten und speichern
+      updateUI();
+      speichern();
+  }
+
+  function deleteNote(id) {
+      notenListe = notenListe.filter(note => note.id !== id);
+
+      // UI updaten und speichern
+      updateUI();
+      speichern();
+  }
+
+  // Speichert das aktuelle Array als Text im Browser-Speicher ab
+  function speichern() {
+      localStorage.setItem('schulnoten_daten', JSON.stringify(notenListe));
+  }
+
+  function updateUI() {
+      const container = document.getElementById('faecherListe');
+      container.innerHTML = '';
+
+      if (notenListe.length === 0) {
+          document.getElementById('gesamtschnitt').innerText = "0.00";
+          return;
+      }
+
+      const faecherGruppen = {};
+      notenListe.forEach(eintrag => {
+          if (!faecherGruppen[eintrag.fach]) {
+              faecherGruppen[eintrag.fach] = [];
+          }
+          faecherGruppen[eintrag.fach].push(eintrag);
+      });
+
+      let summeGewichteterFaecherSchnitte = 0;
+      let summeAllerFachGewichtungen = 0;
+
+      for (const fachName in faecherGruppen) {
+          const notenDesFachs = faecherGruppen[fachName];
+          let summeNotenMalProzent = 0;
+          let summeProzent = 0;
+          let zeilenHtml = '';
+
+          const istHauptfach = notenDesFachs[0].istHauptfach;
+
+          notenDesFachs.forEach(eintrag => {
+              summeNotenMalProzent += (eintrag.note * eintrag.prozent);
+              summeProzent += eintrag.prozent;
+              zeilenHtml += `
+                  <tr>
+                      <td>Note: <strong>${eintrag.note.toFixed(2)}</strong></td>
+                      <td>Gewichtung: ${eintrag.prozent}%</td>
+                      <td style="text-align: right;"><button class="btn-delete" onclick="deleteNote(${eintrag.id})">Löschen</button></td>
+                  </tr>
+              `;
+          });
+
+          const fachSchnitt = summeNotenMalProzent / summeProzent;
+          const fachGewichtung = istHauptfach ? 2 : 1;
+
+          summeGewichteterFaecherSchnitte += (fachSchnitt * fachGewichtung);
+          summeAllerFachGewichtungen += fachGewichtung;
+
+          let badgeClass = 'badge-orange';
+          if (summeProzent === 100) badgeClass = 'badge-green';
+          if (summeProzent > 100) badgeClass = 'badge-red';
+
+          const fachCard = document.createElement('div');
+          fachCard.className = 'fach-card';
+          fachCard.innerHTML = `
+              <div class="fach-header">
+                  <div>
+                      ${fachName}
+                      ${istHauptfach ? '<span class="badge badge-purple" style="margin-left:5px;">Hauptfach</span>' : '<span class="badge" style="background:#95a5a6; margin-left:5px;">Nebenfach</span>'}
+                  </div>
+                  <div class="fach-schnitte">
+                      <span class="badge ${badgeClass}">${summeProzent}%</span>
+                      <span class="badge badge-blue">Schnitt: ${fachSchnitt.toFixed(2)}</span>
+                  </div>
+              </div>
+              <table><tbody>${zeilenHtml}</tbody></table>
+          `;
+          container.appendChild(fachCard);
+      }
+
+      const gesamtschnitt = summeGewichteterFaecherSchnitte / summeAllerFachGewichtungen;
+      document.getElementById('gesamtschnitt').innerText = gesamtschnitt.toFixed(2);
+  }
+</script>
+
+</body>
+</html>

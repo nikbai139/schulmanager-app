@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schulmanager Online Hausaufgaben</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Spezifisches Styling für die Hausaufgabenliste */
+        .hw-list {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .hw-item {
+            background: #fff;
+            border-left: 5px solid #2b7de9;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hw-content { flex: 1; }
+        .hw-fach { font-weight: bold; font-size: 16px; color: #333; margin-bottom: 5px; display: block; }
+        .hw-text { color: #555; font-size: 14px; line-height: 1.4; }
+        .hw-date {
+            background: #eef4fc;
+            color: #2b7de9;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            margin-left: 30px;
+        }
+        .no-hw { text-align: center; color: #777; padding: 20px; font-style: italic; }
+    </style>
+    <div class="nav-buttons">
+        <button onclick="window.location.href='index.html'">Stundenplan</button>
+        <button onclick="window.location.href='hausaufgaben.html'">Hausaufgabe</button>
+        <button onclick="window.location.href='notenrechner.html'">Noten</button>
+    </div>
+</head>
+<body>
+
+<div class="container">
+    <h2>Schulmanager Hausaufgaben-Loader</h2>
+    <form id="hwScraperForm" onsubmit="startHwScraper(event)">
+        <div class="form-row">
+            <div class="input-group">
+                <label for="username">E-Mail / Benutzername</label>
+                <input type="text" id="username" required placeholder="name@schule.de">
+            </div>
+            <div class="input-group">
+                <label for="password">Passwort</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" id="submitBtn">Aufgaben aktualisieren</button>
+        </div>
+    </form>
+    <div id="statusText" class="status" style="display:none; text-align: center; color: #2b7de9; margin-top: 10px;">
+        🔄 Scraper lädt Hausaufgaben... Bitte kurz warten.
+    </div>
+</div>
+
+<div class="container">
+    <h2>Aktuelle Hausaufgaben</h2>
+    <div id="hausaufgabenListe" class="hw-list">
+    </div>
+    <div id="timestamp" class="aktualisiert" style="text-align: right; font-size: 12px; color: #999; margin-top: 10px;"></div>
+</div>
+
+<script src="hausaufgaben.js"></script>
+</body>
+</html>
