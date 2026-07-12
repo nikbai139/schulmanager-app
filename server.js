@@ -10,6 +10,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
+// CORS-Header erlauben, damit dein Handy von überall auf den Server zugreifen darf
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
 // ==========================================
 // 1. ROUTEN FÜR DAS FRONTEND (HTML)
 // ==========================================
