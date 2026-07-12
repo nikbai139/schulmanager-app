@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+// NUTZE DEN PORT DES ANBIETERS ODER FALLS NICHT VORHANDEN 3000
+const PORT = process.env.PORT || 3000;
 
 // Sorgt dafür, dass Express Formulardaten (POST) und JSON-Daten versteht
 app.use(express.json());
@@ -329,9 +330,7 @@ app.post('/start-hw-scraper', async (req, res) => {
     if (browser) await browser.close();
   }
 });
-// Server starten
+// Ganz unten beim Starten des Servers:
 app.listen(PORT, () => {
-  console.log(`🚀 Kombi-Server läuft!`);
-  console.log(`📅 Stundenplan:   http://localhost:${PORT}/`);
-  console.log(`📝 Hausaufgaben: http://localhost:${PORT}/hausaufgaben`);
+  console.log(`Server läuft auf Port ${PORT}`);
 });
