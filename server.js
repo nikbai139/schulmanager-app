@@ -16,7 +16,21 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
+// Server starten mit automatischem Playwright-Browser-Check
+app.listen(PORT, async () => {
+  console.log(`🚀 Kombi-Server läuft auf Port ${PORT}!`);
 
+  // Dieser Trick installiert den Browser direkt im Live-System nach, falls Render ihn vergessen hat
+  try {
+    console.log("Prüfe Playwright-Browser-Installation...");
+    const exec = require('child_process').execSync;
+    // Installiert gezielt nur chromium, um Zeit und Speicherplatz zu sparen
+    exec('npx playwright install chromium', { stdio: 'inherit' });
+    console.log("✅ Playwright-Browser ist einsatzbereit!");
+  } catch (err) {
+    console.error("❌ Fehler beim automatischen Nachinstallieren des Browsers:", err);
+  }
+});
 // ==========================================
 // 1. ROUTEN FÜR DAS FRONTEND (HTML)
 // ==========================================
