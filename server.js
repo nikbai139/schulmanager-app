@@ -93,10 +93,17 @@ app.post('/start-scraper', async (req, res) => {
     console.log('[Stundenplan] Warte auf Dashboard...');
     await page.waitForTimeout(8000);
 
-    // PRÜFUNG: Sind wir wirklich eingeloggt?
-    const aktuellerUrl = page.url();
-    console.log(`[DEBUG] Aktuelle URL nach Login-Versuch: ${aktuellerUrl}`);
-
+    // PRÜFUNG: Sind wir wirklich eingeloggt? (Wir prüfen auf #/dashboard)
+        const aktuellerUrl = page.url();
+        console.log(`[DEBUG] Aktuelle URL nach Login-Versuch: ${aktuellerUrl}`);
+    
+        if (!aktuellerUrl.includes('#/dashboard')) {
+          console.log('❌ [WARNUNG] Wir sind anscheinend nicht auf dem Dashboard gelandet!');
+          await page.screenshot({ path: '/tmp/error_login.png' });
+          const seitenText = await page.innerText('body');
+          console.log(`[DEBUG] Sichtbarer Text auf der Seite:\n${seitenText.substring(0, 500)}...`);
+          throw new Error("Login fehlgeschlagen. Eventuell falsche Daten oder Bot-Schutz aktiv.");
+        }
     if (aktuellerUrl.includes('login')) {
       console.log('❌ [WARNUNG] Wir sind anscheinend immer noch auf der Login-Seite!');
       // Screenshot im Log-Ordner machen
