@@ -37,9 +37,6 @@ app.get('/notenrechner', (req, res) => {
 // ==========================================
 // 2. ROUTEN FÜR DIE JSON-DATEN (GET-FALLBACK)
 // ==========================================
-
-// Da wir alles im Handy-LocalStorage cachen, senden wir hier einen Hinweis, 
-// falls die alten URLs im Hintergrund noch aufgerufen werden sollten.
 app.get('/get-stundenplan', (req, res) => {
   res.status(404).json({ fehler: "Bitte 'Plan aktualisieren' nutzen. Daten werden direkt im Handy gespeichert." });
 });
@@ -64,13 +61,12 @@ app.post('/start-scraper', async (req, res) => {
 
   let browser;
   try {
-    // WICHTIG FÜR RENDER: Spezielle Linux-Argumente, damit der Server nicht abstürzt
-    browser = await chromium.launch({ 
+    browser = await chromium.launch({
       headless: true,
       args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', 
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
         '--disable-gpu'
       ]
     });
@@ -78,22 +74,31 @@ app.post('/start-scraper', async (req, res) => {
     const page = await context.newPage();
 
     console.log('[Stundenplan] Öffne Schulmanager Login...');
-    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'commit' });
-    await page.waitForTimeout(3000);
+    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(4000);
 
-    const usernameField = page.locator('input[name="login"], input[name="username"], input[type="text"], input').first();
-    const passwordField = page.locator('#password');
-    await usernameField.waitFor({ timeout: 5000 });
+    const usernameField = page.locator('input[type="text"], input[name="login"], input').first();
+    const passwordField = page.locator('input[type="password"], #password').first();
+    await usernameField.waitFor({ timeout: 10000 });
 
-    console.log('[Stundenplan] Logge ein...');
-    await usernameField.pressSequentially(username, { delay: 40 });
-    await passwordField.pressSequentially(password, { delay: 40 });
-    await passwordField.press('Enter');
-    await page.waitForTimeout(5000);
+    console.log('[Stundenplan] Logge ein (menschliches Tippen)...');
+    await usernameField.click();
+    await usernameField.pressSequentially(username, { delay: 100 });
+    await page.waitForTimeout(500);
+
+    await passwordField.click();
+    await passwordField.pressSequentially(password, { delay: 100 });
+    await page.waitForTimeout(500);
+
+    const loginButton = page.locator('button[type="submit"], .btn-primary, button').first();
+    await loginButton.click();
+
+    console.log('[Stundenplan] Warte auf Dashboard-Laden...');
+    await page.waitForTimeout(8000);
 
     console.log('[Stundenplan] Navigiere zum Stundenplan-Modul...');
     await page.goto('https://login.schulmanager-online.de/#/modules/schedules/view//', { waitUntil: 'commit' });
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(6000);
 
     console.log('[Stundenplan] Scanne Matrix...');
     const stundenplanSortiert = await page.evaluate(() => {
@@ -175,8 +180,6 @@ app.post('/start-scraper', async (req, res) => {
     };
 
     console.log('✅ [Stundenplan] Erfolgreich gescraped! Sende JSON direkt an den Browser...');
-    
-    // WICHTIG: Schickt das Ergebnis direkt als Antwort zurück an deine app.js
     res.json(datenObjekt);
 
   } catch (error) {
@@ -203,13 +206,12 @@ app.post('/start-hw-scraper', async (req, res) => {
 
   let browser;
   try {
-    // WICHTIG FÜR RENDER: Spezielle Linux-Argumente, damit der Server nicht abstürzt
-    browser = await chromium.launch({ 
+    browser = await chromium.launch({
       headless: true,
       args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage', 
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
         '--disable-gpu'
       ]
     });
@@ -217,18 +219,27 @@ app.post('/start-hw-scraper', async (req, res) => {
     const page = await context.newPage();
 
     console.log('[Hausaufgaben] Öffne Schulmanager Login...');
-    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'commit' });
-    await page.waitForTimeout(3000);
+    await page.goto('https://login.schulmanager-online.de/#/login?institutionId=14644', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(4000);
 
-    const usernameField = page.locator('input[type="text"], input').first();
-    const passwordField = page.locator('#password');
-    await usernameField.waitFor({ timeout: 5000 });
+    const usernameField = page.locator('input[type="text"], input[name="login"], input').first();
+    const passwordField = page.locator('input[type="password"], #password').first();
+    await usernameField.waitFor({ timeout: 10000 });
 
-    console.log('[Hausaufgaben] Logge ein...');
-    await usernameField.pressSequentially(username, { delay: 40 });
-    await passwordField.pressSequentially(password, { delay: 40 });
-    await passwordField.press('Enter');
-    await page.waitForTimeout(5000);
+    console.log('[Hausaufgaben] Logge ein (menschliches Tippen)...');
+    await usernameField.click();
+    await usernameField.pressSequentially(username, { delay: 100 });
+    await page.waitForTimeout(500);
+
+    await passwordField.click();
+    await passwordField.pressSequentially(password, { delay: 100 });
+    await page.waitForTimeout(500);
+
+    const loginButton = page.locator('button[type="submit"], .btn-primary, button').first();
+    await loginButton.click();
+
+    console.log('[Hausaufgaben] Warte auf Dashboard-Laden...');
+    await page.waitForTimeout(8000);
 
     console.log('[Hausaufgaben] Navigiere zum Klassenbuch-Hausaufgaben-Modul...');
     await page.goto('https://login.schulmanager-online.de/#/modules/classbook/homework/', { waitUntil: 'commit' });
@@ -316,8 +327,6 @@ app.post('/start-hw-scraper', async (req, res) => {
     };
 
     console.log('✅ [Hausaufgaben] Erfolgreich gescraped! Sende JSON direkt an den Browser...');
-    
-    // WICHTIG: Schickt auch hier das Ergebnis direkt als Antwort zurück an deine hausaufgaben.js
     res.json(datenObjekt);
 
   } catch (error) {
